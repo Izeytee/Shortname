@@ -1,0 +1,28 @@
+# started on Sun Feb 22 20:09:50 2026
+
+
+ Performance counter stats for './a.out':
+
+     2,678,447,005      cycles:u                                                              
+     2,321,355,129      instructions:u                   #    0.87  insn per cycle            
+                                                  #    0.15  stalled cycles per insn   
+       336,734,368      stalled-cycles-backend:u         #   12.57% backend cycles idle       
+        20,088,762      stalled-cycles-frontend:u        #    0.75% frontend cycles idle      
+                 0      vector_micro_op:u                                                     
+                 0      vpu_stall_pipe0:u                                                     
+                 0      vpu_hazard_stall_pipe0:u                                              
+                 0      vpu_uncommit_stall_pipe0:u                                            
+                 0      vpu_vlsu_stall_pipe0:u                                                
+                 0      vpu_stall_pipe1:u                                                     
+                 0      vpu_hazard_stall_pipe1:u                                              
+                 0      vpu_uncommit_stall_pipe1:u                                            
+                 0      vpu_vlsu_stall_pipe1:u                                                
+           923,674      L1-dcache-load-misses:u                                               
+         3,687,694      L1-dcache-store-misses:u                                              
+
+       1.676620827 seconds time elapsed
+
+       0.796420000 seconds user
+       0.880465000 seconds sys
+
+
