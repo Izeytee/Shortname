@@ -162,6 +162,10 @@ void modulation(const uint32_t *pSrc, T32fc *pDst, uint32_t length)
 
 #include <riscv_vector.h>
 
+static const float mod16QAM_IMG[]  = {-3 * C_16QAM, -C_16QAM, C_16QAM, 3 * C_16QAM};
+
+static const float mod16QAM_REAL[]  = {-3 * C_16QAM, -C_16QAM, C_16QAM, 3 * C_16QAM};
+
 static const float mod256QAM_IMG[]  = {-15 * C_256QAM, -13 * -C_256QAM, -11 * C_256QAM, -9 * C_256QAM, -7 * C_256QAM, -5 * C_256QAM, -3 * C_256QAM, -C_256QAM,
 	15 * C_256QAM, 13 * -C_256QAM, 11 * C_256QAM, 9 * C_256QAM, 7 * C_256QAM, 5 * C_256QAM, 3 * C_256QAM, C_256QAM};
 
@@ -204,66 +208,121 @@ void modulation_opt(const uint32_t *pSrc, T32fc *pDst, uint32_t length)
         unsigned int tmp[1];
         unzip(pSrc, tmp, 1);
 
-        pDst[i].re = mod256QAM_REAL[*tmp & 0xf];
-        pDst[i].im = mod256QAM_IMG[(*tmp & 0xf0) >> 2];
+        pDst[i].re = mod16QAM_REAL[*tmp & 0x3];
+        pDst[i].im = mod16QAM_IMG[(*tmp & 0xc) >> 2];
+    }
+}
+
+void modulation_not_opt(const uint32_t *pSrc, float *pDstReal, float *pDstImg, uint32_t length)
+{
+    for (int i = 0; i < length; ++i) {
+        unsigned int tmp[1];
+        unzip(pSrc, tmp, 1);
+
+        pDstReal[i] = mod16QAM_REAL[*tmp & 0x3];
+        pDstImg[i] = mod16QAM_IMG[(*tmp & 0xc) >> 2];
     }
 }
 
 void modulation_full_opt(const uint32_t *pSrc, float *pDstReal, float *pDstImg, uint32_t length)
 {
-    vfloat32m1_t tableImg  = __riscv_vle32_v_f32m1(mod256QAM_IMG, 4);
-    vfloat32m1_t tableReal = __riscv_vle32_v_f32m1(mod256QAM_REAL, 4);
+    vfloat32m1_t tableImg  = __riscv_vle32_v_f32m1(mod16QAM_IMG, 4);
+    vfloat32m1_t tableReal = __riscv_vle32_v_f32m1(mod16QAM_REAL, 4);
 
-    const size_t VL = 4; // __riscv_vsetvlmax_e32m1();
+    const size_t VL = __riscv_vsetvlmax_e32m1();
 
     unsigned int tmp[VL];
 
-    for (int i = 0; i < length; i += VL * 4) {
+    for (int i = 0; i < length; i += VL) {
         vuint32m1_t ind0 = __riscv_vle32_v_u32m1(pSrc, VL);
         vuint32m1_t ind1 = __riscv_vle32_v_u32m1(pSrc + 4, VL);
-        vuint32m1_t ind2 = __riscv_vle32_v_u32m1(pSrc + 8, VL);
-        vuint32m1_t ind3 = __riscv_vle32_v_u32m1(pSrc + 12, VL);
+//        vuint32m1_t ind2 = __riscv_vle32_v_u32m1(pSrc + 8, VL);
+//        vuint32m1_t ind3 = __riscv_vle32_v_u32m1(pSrc + 12, VL);
 
-        vuint32m1_t indImg0 = __riscv_vand_vx_u32m1(ind0, 0xf, VL);
+
+        vuint32m1_t indImg0 = __riscv_vand_vx_u32m1(ind0, 0x3, VL);
         vuint32m1_t indImg1 = __riscv_vand_vx_u32m1(ind1, 0xf, VL);
-        vuint32m1_t indImg2 = __riscv_vand_vx_u32m1(ind2, 0xf, VL);
-        vuint32m1_t indImg3 = __riscv_vand_vx_u32m1(ind3, 0xf, VL);
+//        vuint32m1_t indImg2 = __riscv_vand_vx_u32m1(ind2, 0xf, VL);
+//        vuint32m1_t indImg3 = __riscv_vand_vx_u32m1(ind3, 0xf, VL);
 
-        vuint32m1_t indReal0 = __riscv_vand_vx_u32m1(ind0, 0xf0, VL);
-        indReal0 = __riscv_vsrl_vx_u32m1(indReal0, 4, VL);
+        vuint32m1_t indReal0 = __riscv_vand_vx_u32m1(ind0, 0xc, VL);
+        indReal0 = __riscv_vsrl_vx_u32m1(indReal0, 2, VL);
         vuint32m1_t indReal1 = __riscv_vand_vx_u32m1(ind1, 0xf0, VL);
         indReal1 = __riscv_vsrl_vx_u32m1(indReal1, 4, VL);
-        vuint32m1_t indReal2 = __riscv_vand_vx_u32m1(ind2, 0xf0, VL);
-        indReal2 = __riscv_vsrl_vx_u32m1(indReal2, 4, VL);
-        vuint32m1_t indReal3 = __riscv_vand_vx_u32m1(ind3, 0xf0, VL);
-        indReal3 = __riscv_vsrl_vx_u32m1(indReal3, 4, VL);
+//        vuint32m1_t indReal2 = __riscv_vand_vx_u32m1(ind2, 0xf0, VL);
+//        indReal2 = __riscv_vsrl_vx_u32m1(indReal2, 4, VL);
+//        vuint32m1_t indReal3 = __riscv_vand_vx_u32m1(ind3, 0xf0, VL);
+//        indReal3 = __riscv_vsrl_vx_u32m1(indReal3, 4, VL);
 
         vfloat32m1_t resReal0 = __riscv_vrgather_vv_f32m1(tableReal, indReal0, 4);
         vfloat32m1_t resImg0  = __riscv_vrgather_vv_f32m1(tableImg, indImg0, 4);
         
 	vfloat32m1_t resReal1 = __riscv_vrgather_vv_f32m1(tableReal, indReal1, 4);
-        vfloat32m1_t resImg1  = __riscv_vrgather_vv_f32m1(tableImg, indImg1, 4);
+      vfloat32m1_t resImg1  = __riscv_vrgather_vv_f32m1(tableImg, indImg1, 4);
         
-	vfloat32m1_t resReal2 = __riscv_vrgather_vv_f32m1(tableReal, indReal2, 4);
-        vfloat32m1_t resImg2  = __riscv_vrgather_vv_f32m1(tableImg, indImg2, 4);
+//	vfloat32m1_t resReal2 = __riscv_vrgather_vv_f32m1(tableReal, indReal2, 4);
+//       vfloat32m1_t resImg2  = __riscv_vrgather_vv_f32m1(tableImg, indImg2, 4);
         
-	vfloat32m1_t resReal3 = __riscv_vrgather_vv_f32m1(tableReal, indReal3, 4);
-        vfloat32m1_t resImg3  = __riscv_vrgather_vv_f32m1(tableImg, indImg3, 4);
+//	vfloat32m1_t resReal3 = __riscv_vrgather_vv_f32m1(tableReal, indReal3, 4);
+//        vfloat32m1_t resImg3  = __riscv_vrgather_vv_f32m1(tableImg, indImg3, 4);
 
-        __riscv_vse32_v_f32m1(pDstReal, resReal0, VL);
-        __riscv_vse32_v_f32m1(pDstImg, resImg0, VL);
-        
-	__riscv_vse32_v_f32m1(pDstReal + 4, resReal1, VL);
-        __riscv_vse32_v_f32m1(pDstImg + 4, resImg1, VL);
-        
-	__riscv_vse32_v_f32m1(pDstReal + 8, resReal2, VL);
-        __riscv_vse32_v_f32m1(pDstImg + 8, resImg2, VL);
-        
-	__riscv_vse32_v_f32m1(pDstReal + 12, resReal3, VL);
-        __riscv_vse32_v_f32m1(pDstImg + 12, resImg3, VL);
+	
 
-	pDstReal += VL * 4;
-	pDstImg  += VL * 4;
-	pSrc 	 += VL * 4;
+//        __riscv_vse32_v_f32m1(pDstReal, resReal0, VL);
+//        __riscv_vse32_v_f32m1(pDstImg, resImg0, VL);
+        
+//	__riscv_vse32_v_f32m1(pDstReal + VL, resReal1, VL);
+//        __riscv_vse32_v_f32m1(pDstImg + VL, resImg1, VL);
+        
+//	__riscv_vse32_v_f32m1(pDstReal + 8, resReal2, VL);
+//        __riscv_vse32_v_f32m1(pDstImg + 8, resImg2, VL);
+        
+//	__riscv_vse32_v_f32m1(pDstReal + 12, resReal3, VL);
+//        __riscv_vse32_v_f32m1(pDstImg + 12, resImg3, VL);
+
+	pDstReal += VL;
+	pDstImg  += VL;
+	pSrc 	 += VL;
+    }
+}
+
+void modulation_absolute_opt(const uint32_t *pSrc, T32fc *pDst, uint32_t length)
+{
+    vfloat32m1_t tableImg  = __riscv_vle32_v_f32m1(mod16QAM_IMG, 4);
+    vfloat32m1_t tableReal = __riscv_vle32_v_f32m1(mod16QAM_REAL, 4);
+
+    const size_t VL = __riscv_vsetvlmax_e32m1();
+
+    unsigned int tmp[VL];
+
+    for (int i = 0; i < length; i += VL) {
+        vuint32m1_t ind0 = __riscv_vle32_v_u32m1(pSrc, VL);
+        //vuint32m1_t ind1 = __riscv_vle32_v_u32m1(pSrc + VL, VL);
+
+        vuint32m1_t indImg0 = __riscv_vand_vx_u32m1(ind0, 0x3, VL);
+        //vuint32m1_t indImg1 = __riscv_vand_vx_u32m1(ind1, 0x3, VL);
+
+        vuint32m1_t indReal0 = __riscv_vand_vx_u32m1(ind0, 0xc, VL);
+        indReal0 = __riscv_vsrl_vx_u32m1(indReal0, 2, VL);
+        //vuint32m1_t indReal1 = __riscv_vand_vx_u32m1(ind1, 0xc, VL);
+        //indReal1 = __riscv_vsrl_vx_u32m1(indReal1, 2, VL);
+
+        vfloat32m1_t resReal0 = __riscv_vrgather_vv_f32m1(tableReal, indReal0, VL);
+        vfloat32m1_t resImg0  = __riscv_vrgather_vv_f32m1(tableImg, indImg0, VL);
+        
+	//vfloat32m1_t resReal1 = __riscv_vrgather_vv_f32m1(tableReal, indReal1, VL);
+        //vfloat32m1_t resImg1  = __riscv_vrgather_vv_f32m1(tableImg, indImg1, VL);
+        
+
+        __riscv_vse32_v_f32m1((float*)pDst, resReal0, VL);
+        __riscv_vse32_v_f32m1((float*)pDst + VL, resImg0, VL);
+
+	//__riscv_vsse32_v_f32m1((float*)pDst, 8, resReal0, VL);
+	//__riscv_vsse32_v_f32m1((float*)pDst + 1, 8, resImg0, VL);
+	//__riscv_vsse32_v_f32m1((float*)pDst + VL * 2, 8, resReal1, VL);
+	//__riscv_vsse32_v_f32m1((float*)pDst + VL * 2 + 1, 8, resImg1, VL);
+
+	pDst  	+= VL;
+	pSrc 	+= VL;
     }
 }
