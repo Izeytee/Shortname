@@ -267,12 +267,11 @@ void modulation_full_opt(const uint32_t *pSrc, float *pDstReal, float *pDstImg, 
 //        vfloat32m1_t resImg3  = __riscv_vrgather_vv_f32m1(tableImg, indImg3, 4);
 
 	
-
-//        __riscv_vse32_v_f32m1(pDstReal, resReal0, VL);
-//        __riscv_vse32_v_f32m1(pDstImg, resImg0, VL);
+        __riscv_vse32_v_f32m1(pDstReal, resReal0, VL);
+	__riscv_vse32_v_f32m1(pDstReal + VL, resReal1, VL);
         
-//	__riscv_vse32_v_f32m1(pDstReal + VL, resReal1, VL);
-//        __riscv_vse32_v_f32m1(pDstImg + VL, resImg1, VL);
+        __riscv_vse32_v_f32m1(pDstImg, resImg0, VL);
+        __riscv_vse32_v_f32m1(pDstImg + VL, resImg1, VL);
         
 //	__riscv_vse32_v_f32m1(pDstReal + 8, resReal2, VL);
 //        __riscv_vse32_v_f32m1(pDstImg + 8, resImg2, VL);
@@ -280,9 +279,9 @@ void modulation_full_opt(const uint32_t *pSrc, float *pDstReal, float *pDstImg, 
 //	__riscv_vse32_v_f32m1(pDstReal + 12, resReal3, VL);
 //        __riscv_vse32_v_f32m1(pDstImg + 12, resImg3, VL);
 
-	pDstReal += VL;
-	pDstImg  += VL;
-	pSrc 	 += VL;
+	pDstReal += VL * 2;
+	pDstImg  += VL * 2;
+	pSrc 	 += VL * 2;
     }
 }
 
@@ -293,11 +292,24 @@ void modulation_absolute_opt(const uint32_t *pSrc, T32fc *pDst, uint32_t length)
 
     const size_t VL = __riscv_vsetvlmax_e32m1();
 
-    unsigned int tmp[VL];
-
     for (int i = 0; i < length; i += VL) {
-        vuint32m1_t ind0 = __riscv_vle32_v_u32m1(pSrc, VL);
+        vuint32m1_t tmp = __riscv_vle32_v_u32m1(pSrc, VL);
         //vuint32m1_t ind1 = __riscv_vle32_v_u32m1(pSrc + VL, VL);
+
+	vuint32m1_t odd  = __riscv_vand_vx_u32m1(tmp, 0xA, VL);
+	odd = __riscv_vsrl_vx_u32m1(odd, 1, VL);
+	vuint32m1_t tmpOdd = __riscv_vsrl_vx_u32m1(odd, 1, VL);
+	odd = __riscv_vor_vv_u32m1(odd, tmpOdd, VL);
+	odd = __riscv_vand_vx_u32m1(odd, 0x3, VL); 
+
+	vuint32m1_t even = __riscv_vand_vx_u32m1(tmp, 0x5, VL);
+	even = __riscv_vsrl_vx_u32m1(even, 1, VL);
+	vuint32m1_t tmpEven = __riscv_vsrl_vx_u32m1(even, 1, VL);
+	even = __riscv_vor_vv_u32m1(even, tmpEven, VL);
+	even = __riscv_vand_vx_u32m1(even, 0x3, VL); 
+	
+	odd = __riscv_vsll_vx_u32m1(odd, 2, VL);
+	vuint32m1_t ind0 = __riscv_vor_vv_u32m1(even, odd, VL);
 
         vuint32m1_t indImg0 = __riscv_vand_vx_u32m1(ind0, 0x3, VL);
         //vuint32m1_t indImg1 = __riscv_vand_vx_u32m1(ind1, 0x3, VL);
