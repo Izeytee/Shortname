@@ -147,3 +147,37 @@ void calcFreqOffset_opt(T32fc *pSrcRx[4], T32fc *pSrcTx[2], uint32_t len, float 
     *pCfo = atan2f(sum_im, sum_re);
     *pCfo /= divisor;
 }
+
+#include <stdlib.h>
+int main()
+{
+    const int N = 1280000;
+
+    T32fc *pSrcRx[4];
+    for (int i = 0; i < 4; i++)
+    {
+        pSrcRx[i] = (T32fc*)malloc(N * sizeof(T32fc));
+        for (int j = 0; j < N; j++)
+        {
+            pSrcRx[i][j].re = rand() / (float)RAND_MAX;
+            pSrcRx[i][j].im = rand() / (float)RAND_MAX;
+        }
+    }
+
+    T32fc *pSrcTx[2];
+    for (int i = 0; i < 2; i++)
+    {
+        pSrcTx[i] = (T32fc*)malloc(N * sizeof(T32fc));
+        for (int j = 0; j < N; j++)
+        {
+            pSrcTx[i][j].re = rand() / (float)RAND_MAX;
+            pSrcTx[i][j].im = rand() / (float)RAND_MAX;
+        }
+    }
+
+    float pCfo;
+    float tLimit = 0.01f;
+    float subCrSpace = 0.01f;
+
+    calcFreqOffset(pSrcRx, pSrcTx, N, &pCfo, tLimit, subCrSpace);
+}
