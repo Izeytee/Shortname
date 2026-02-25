@@ -65,61 +65,49 @@ void calcFreqOffset(T32fc *pSrcRx[4], T32fc *pSrcTx[2], uint32_t len, float *pCf
 
 #include <riscv_vector.h>
 
-void calcFreqOffset_opt(const float * rxRe[4], 
-                              const float * rxIm[4],
-                              const float * txRe[2], 
-                              const float * txIm[2],
-                              uint32_t len, 
-                              float * pCfo, 
-                              float tLimit, 
-                              float subCrSpace)
+void calcFreqOffset_opt(T32fc *pSrcRx[4], T32fc *pSrcTx[2], uint32_t len, float *pCfo, float tLimit, float subCrSpace)
 {
-    // Настройка векторного режима (LMUL=1, SEW=32-bit float)
     size_t vl = __riscv_vsetvl_e32m1(len);
     
-    // Векторные аккумуляторы для суммы (инициализация нулями)
     vfloat32m1_t vsum_re = __riscv_vfmv_v_f_f32m1(0.0f, vl);
     vfloat32m1_t vsum_im = __riscv_vfmv_v_f_f32m1(0.0f, vl);
     
-    // Предвычисляем знаменатель
     float divisor = 2.0f * OWN_PI * tLimit * subCrSpace;
     
-    // Кэшируем указатели
-    const float *rx0_re = rxRe[0];
-    const float *rx0_im = rxIm[0];
-    const float *rx1_re = rxRe[1];
-    const float *rx1_im = rxIm[1];
-    const float *rx2_re = rxRe[2];
-    const float *rx2_im = rxIm[2];
-    const float *rx3_re = rxRe[3];
-    const float *rx3_im = rxIm[3];
-    const float *tx0_re = txRe[0];
-    const float *tx0_im = txIm[0];
-    const float *tx1_re = txRe[1];
-    const float *tx1_im = txIm[1];
+    const float *rx0 = (float*)pSrcRx[0];
+    const float *rx1 = (float*)pSrcRx[1];
+    const float *rx2 = (float*)pSrcRx[2];
+    const float *rx3 = (float*)pSrcRx[3];
+    const float *tx0 = (float*)pSrcTx[0];
+    const float *tx1 = (float*)pSrcTx[1];
     
-    uint32_t i = 0;
-    
-    // Основной векторный цикл
-    for (; i + vl <= len; i += vl)
+    for (uint32_t i = 0; i + vl <= len; i += vl)
     {
-        // Обновляем векторную длину для остатка
         vl = __riscv_vsetvl_e32m1(len - i);
         
-        // --- Загрузка данных в векторные регистры ---
-        vfloat32m1_t v_tx0_re = __riscv_vle32_v_f32m1(tx0_re + i, vl);
-        vfloat32m1_t v_tx0_im = __riscv_vle32_v_f32m1(tx0_im + i, vl);
-        vfloat32m1_t v_tx1_re = __riscv_vle32_v_f32m1(tx1_re + i, vl);
-        vfloat32m1_t v_tx1_im = __riscv_vle32_v_f32m1(tx1_im + i, vl);
+        vfloat32m1x2_t v_tmp0 = __riscv_vlseg2e32_v_f32m1x2(tx0 + i * 2, vl);
+        vfloat32m1_t v_tx0_re = __riscv_vget_v_f32m1x2_f32m1(v_tmp0, 0);
+        vfloat32m1_t v_tx0_im = __riscv_vget_v_f32m1x2_f32m1(v_tmp0, 1);
+
+        vfloat32m1x2_t v_tmp1 = __riscv_vlseg2e32_v_f32m1x2(tx1 + i * 2, vl);
+        vfloat32m1_t v_tx1_re = __riscv_vget_v_f32m1x2_f32m1(v_tmp1, 0);
+        vfloat32m1_t v_tx1_im = __riscv_vget_v_f32m1x2_f32m1(v_tmp1, 1);
         
-        vfloat32m1_t v_rx0_re = __riscv_vle32_v_f32m1(rx0_re + i, vl);
-        vfloat32m1_t v_rx0_im = __riscv_vle32_v_f32m1(rx0_im + i, vl);
-        vfloat32m1_t v_rx1_re = __riscv_vle32_v_f32m1(rx1_re + i, vl);
-        vfloat32m1_t v_rx1_im = __riscv_vle32_v_f32m1(rx1_im + i, vl);
-        vfloat32m1_t v_rx2_re = __riscv_vle32_v_f32m1(rx2_re + i, vl);
-        vfloat32m1_t v_rx2_im = __riscv_vle32_v_f32m1(rx2_im + i, vl);
-        vfloat32m1_t v_rx3_re = __riscv_vle32_v_f32m1(rx3_re + i, vl);
-        vfloat32m1_t v_rx3_im = __riscv_vle32_v_f32m1(rx3_im + i, vl);
+        vfloat32m1x2_t v_tmp2 = __riscv_vlseg2e32_v_f32m1x2(rx0 + i * 2, vl);
+        vfloat32m1_t v_rx0_re = __riscv_vget_v_f32m1x2_f32m1(v_tmp2, 0);
+        vfloat32m1_t v_rx0_im = __riscv_vget_v_f32m1x2_f32m1(v_tmp2, 1);
+
+        vfloat32m1x2_t v_tmp3 = __riscv_vlseg2e32_v_f32m1x2(rx1 + i * 2, vl);
+        vfloat32m1_t v_rx1_re = __riscv_vget_v_f32m1x2_f32m1(v_tmp3, 0);
+        vfloat32m1_t v_rx1_im = __riscv_vget_v_f32m1x2_f32m1(v_tmp3, 1);
+
+        vfloat32m1x2_t v_tmp4 = __riscv_vlseg2e32_v_f32m1x2(rx2 + i * 2, vl);
+        vfloat32m1_t v_rx2_re = __riscv_vget_v_f32m1x2_f32m1(v_tmp4, 0);
+        vfloat32m1_t v_rx2_im = __riscv_vget_v_f32m1x2_f32m1(v_tmp4, 1);
+
+        vfloat32m1x2_t v_tmp5 = __riscv_vlseg2e32_v_f32m1x2(rx3 + i * 2, vl);
+        vfloat32m1_t v_rx3_re = __riscv_vget_v_f32m1x2_f32m1(v_tmp5, 0);
+        vfloat32m1_t v_rx3_im = __riscv_vget_v_f32m1x2_f32m1(v_tmp5, 1);
         
         vfloat32m1_t v_t0_re = __riscv_vfmacc_vv_f32m1(__riscv_vfmul_vv_f32m1(v_tx0_re, v_rx0_re, vl), 
                                                 v_tx0_im, v_rx0_im, vl);
@@ -152,7 +140,6 @@ void calcFreqOffset_opt(const float * rxRe[4],
                                    v_t0_im, v_t1_re, vl);
     }
     
-    // --- Редукция: суммируем все элементы вектора в скаляр ---
     float sum_re = __riscv_vfmv_f_s_f32m1_f32(__riscv_vfredosum_vs_f32m1_f32m1(vsum_re, __riscv_vfmv_v_f_f32m1(0.0f, vl), vl));
     float sum_im = __riscv_vfmv_f_s_f32m1_f32(__riscv_vfredosum_vs_f32m1_f32m1(vsum_im, __riscv_vfmv_v_f_f32m1(0.0f, vl), vl));
     
