@@ -149,6 +149,8 @@ void calcFreqOffset_opt(T32fc *pSrcRx[4], T32fc *pSrcTx[2], uint32_t len, float 
 }
 
 #include <stdlib.h>
+#include <stdio.h>
+#include <time.h>
 int main()
 {
     const int N = 1280000;
@@ -179,5 +181,13 @@ int main()
     float tLimit = 0.01f;
     float subCrSpace = 0.01f;
 
+    
+    double t;
+    struct timespec start, end;
+
+    clock_gettime(CLOCK_MONOTONIC, &start);
     calcFreqOffset(pSrcRx, pSrcTx, N, &pCfo, tLimit, subCrSpace);
+    clock_gettime(CLOCK_MONOTONIC, &end);
+    t = (end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec) * 1e-9;
+    printf("Time taken: %e\n", t);
 }

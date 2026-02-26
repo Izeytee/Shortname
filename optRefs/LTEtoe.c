@@ -1,6 +1,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <math.h>
+#include <riscv_vector.h>
 
 #define MIN_Q15 (-32768)
 #define MAX_Q15 32767
@@ -784,11 +785,25 @@ const T16sc delayRotators[5][NUM_SC] =
   }
 };
 
+
+#include <stdlib.h>
+#include <stdio.h>
+#include <time.h>
 int main(void)
 {
     uint32_t delayIdx;
-    timeOffsetEstimation(src, baseSeq, txData, delayRotators, &delayIdx);
-    printf("delay idx = %d\n", delayIdx);
 
+
+    double t;
+    struct timespec start, end;
+
+    clock_gettime(CLOCK_MONOTONIC, &start);
+    timeOffsetEstimation(src, baseSeq, txData, delayRotators, &delayIdx);
+    clock_gettime(CLOCK_MONOTONIC, &end);
+    t = (end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec) * 1e-9;
+    printf("Time taken: %e\n", t);
+
+
+    
     return 0;
 }
