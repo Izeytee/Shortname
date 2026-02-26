@@ -185,6 +185,205 @@ void timeOffsetEstimation(const T16sc src[SYM_SFRAME][MAX_ANT][NUM_SC],
     }
 }
 
+void timeOffsetEstimation_opt(const T16sc src[SYM_SFRAME][MAX_ANT][NUM_SC],
+                                const T16sc baseSeq[SYM_SFRAME][NUM_SC],
+                               const T16sc txData[SYM_SFRAME][NUM_SC],
+                               const T16sc delayRotators[NUM_DLY][NUM_SC],
+                               uint32_t *delayIdx)
+{
+    T32sc prbAcc[NUM_SC] = {0};
+    
+    // Настройка векторной конфигурации
+    size_t vlmax = __riscv_vsetvlmax_e16m1();
+    size_t vl = (NUM_SC < vlmax) ? NUM_SC : vlmax;
+    
+    for (uint32_t iSlot = 0; iSlot < SLOT_SFRAME; ++iSlot)
+    {
+        T32sc slotAveraged[MAX_ANT][NUM_SC] = {0};
+        T32sc slotPhasor[MAX_ANT] = {0};
+        
+        for (uint32_t iAnt = 0; iAnt < MAX_ANT; ++iAnt)
+        {
+            vint32m2_t v_acc_re = __riscv_vmv_v_x_i32m2(0, vl);
+            vint32m2_t v_acc_im = __riscv_vmv_v_x_i32m2(0, vl);
+            int32_t scalar_phasor_re = 0;
+            int32_t scalar_phasor_im = 0;
+            
+            for (uint32_t iSc = 0; iSc < NUM_SC; iSc += vl)
+            {
+                vl = __riscv_vsetvl_e16m1(NUM_SC - iSc);
+                
+                vbool8_t mask = __riscv_vmsltu_vx_u8m1_b8(
+                    __riscv_vid_v_u8m1(vl), NUM_SC - iSc, vl);
+                
+                for (uint32_t iSymb = 0; iSymb < NUM_SYM_SLOT; ++iSymb)
+                {
+                    uint32_t symbIdx = iSymb + iSlot * NUM_SYM_SLOT;
+                            
+                    vint16m1x2_t v_tmp0 = __riscv_vlseg2e16_v_i16m1x2((const int16_t*)&txData[symbIdx][iSc], vl);
+                    vint16m1_t v_txRe = __riscv_vget_v_i16m1x2_i16m1(v_tmp0, 0);
+                    vint16m1_t v_txIm = __riscv_vget_v_i16m1x2_i16m1(v_tmp0, 1);
+
+                    vint16m1x2_t v_tmp1 = __riscv_vlseg2e16_v_i16m1x2((const int16_t*)&baseSeq[symbIdx][iSc], vl);
+                    vint16m1_t v_bsRe = __riscv_vget_v_i16m1x2_i16m1(v_tmp0, 0);
+                    vint16m1_t v_bsIm = __riscv_vget_v_i16m1x2_i16m1(v_tmp0, 1);
+
+                    vint16m1x2_t v_tmp2 = __riscv_vlseg2e16_v_i16m1x2((const int16_t*)&src[symbIdx][iSc], vl);
+                    vint16m1_t v_srcRe = __riscv_vget_v_i16m1x2_i16m1(v_tmp2, 0);
+                    vint16m1_t v_srcIm = __riscv_vget_v_i16m1x2_i16m1(v_tmp2, 1);
+                    
+                    vint32m2_t v_txRe_bsRe = __riscv_vwmul_vv_i32m2(v_txRe, v_bsRe, vl);
+                    vint32m2_t v_txIm_bsIm = __riscv_vwmul_vv_i32m2(v_txIm, v_bsIm, vl);
+                    vint32m2_t v_ref_re = __riscv_vsub_vv_i32m2(v_txRe_bsRe, v_txIm_bsIm, vl);
+                    
+                    vint32m2_t v_txIm_bsRe = __riscv_vwmul_vv_i32m2(v_txIm, v_bsRe, vl);
+                    vint32m2_t v_txRe_bsIm = __riscv_vwmul_vv_i32m2(v_txRe, v_bsIm, vl);
+                    vint32m2_t v_ref_im = __riscv_vadd_vv_i32m2(v_txIm_bsRe, v_txRe_bsIm, vl);
+                    
+                    v_ref_re = __riscv_vsra_vx_i32m2(v_ref_re, 15, vl);
+                    v_ref_im = __riscv_vsra_vx_i32m2(v_ref_im, 15, vl);
+                    
+                    vint16m1_t v_ref_re_16 = __riscv_vnsra_wx_i16m1(v_ref_re, 0, vl);
+                    vint16m1_t v_ref_im_16 = __riscv_vnsra_wx_i16m1(v_ref_im, 0, vl);
+                    
+                    vint32m2_t v_iq_re = __riscv_vadd_vv_i32m2(
+                        __riscv_vwmul_vv_i32m2(v_srcRe, v_ref_re_16, vl),
+                        __riscv_vwmul_vv_i32m2(v_srcIm, v_ref_im_16, vl), vl);
+                    
+                    vint32m2_t v_iq_im = __riscv_vsub_vv_i32m2(
+                        __riscv_vwmul_vv_i32m2(v_srcIm, v_ref_re_16, vl),
+                        __riscv_vwmul_vv_i32m2(v_srcRe, v_ref_im_16, vl), vl);
+                    
+                    v_iq_re = __riscv_vsra_vx_i32m2(v_iq_re, 15, vl);
+                    v_iq_im = __riscv_vsra_vx_i32m2(v_iq_im, 15, vl);
+                    
+                    v_acc_re = __riscv_vadd_vv_i32m2(v_acc_re, v_iq_re, vl);
+                    v_acc_im = __riscv_vadd_vv_i32m2(v_acc_im, v_iq_im, vl);
+                }
+                
+                vint32m2x2_t v_tmp0;
+                __riscv_vset_v_i32m2_i32m2x2(v_tmp0, 0, v_acc_re);
+                __riscv_vset_v_i32m2_i32m2x2(v_tmp0, 1, v_acc_im);
+
+                __riscv_vsseg2e32_v_i32m2x2(&slotAveraged[iAnt][iSc].re, v_tmp0, vl);
+
+                                for (uint32_t j = 0; j < vl; j++)
+                {
+                    scalar_phasor_re += slotAveraged[iAnt][iSc + j].re;
+                    scalar_phasor_im += slotAveraged[iAnt][iSc + j].im;
+                }
+
+            }
+            
+            slotPhasor[iAnt].re = scalar_phasor_re;
+            slotPhasor[iAnt].im = scalar_phasor_im;
+        }
+        
+        for (uint32_t iAnt = 0; iAnt < MAX_ANT; ++iAnt)
+        {
+            int32_t mag_sq = slotPhasor[iAnt].re * slotPhasor[iAnt].re + 
+                            slotPhasor[iAnt].im * slotPhasor[iAnt].im;
+            int32_t scale = (int32_t)sqrt((double)mag_sq);
+            if (scale > 0)
+            {
+                slotPhasor[iAnt].re = (slotPhasor[iAnt].re * (1 << 16)) / scale;
+                slotPhasor[iAnt].im = (slotPhasor[iAnt].im * (1 << 16)) / scale;
+            }
+        }
+        
+        for (uint32_t iSc = 0; iSc < NUM_SC; iSc += vl)
+        {
+            vl = __riscv_vsetvl_e32m2(NUM_SC - iSc);
+            
+            for (uint32_t iAnt = 0; iAnt < MAX_ANT; ++iAnt)
+            {
+                vint32m2_t v_avg_re = __riscv_vle32_v_i32m2(&slotAveraged[iAnt][iSc].re, vl);
+                vint32m2_t v_avg_im = __riscv_vle32_v_i32m2(&slotAveraged[iAnt][iSc].im, vl);
+                
+                vint32m2_t v_phasor_re = __riscv_vmv_v_x_i32m2(slotPhasor[iAnt].re, vl);
+                vint32m2_t v_phasor_im = __riscv_vmv_v_x_i32m2(slotPhasor[iAnt].im, vl);
+                
+                vint64m4_t v_tmp_re = __riscv_vadd_vv_i64m4(
+                    __riscv_vwmul_vv_i64m4(v_avg_re, v_phasor_re, vl),
+                    __riscv_vwmul_vv_i64m4(v_avg_im, v_phasor_im, vl), vl);
+                
+                vint64m4_t v_tmp_im = __riscv_vsub_vv_i64m4(
+                    __riscv_vwmul_vv_i64m4(v_avg_im, v_phasor_re, vl),
+                    __riscv_vwmul_vv_i64m4(v_avg_re, v_phasor_im, vl), vl);
+                
+                vint32m2_t v_rotated_re = __riscv_vnsra_wx_i32m2(v_tmp_re, 15, vl);
+                vint32m2_t v_rotated_im = __riscv_vnsra_wx_i32m2(v_tmp_im, 15, vl);
+                
+                v_rotated_re = __riscv_vmin_vx_i32m2(v_rotated_re, MAX_Q15, vl);
+                v_rotated_re = __riscv_vmax_vx_i32m2(v_rotated_re, MIN_Q15, vl);
+                v_rotated_im = __riscv_vmin_vx_i32m2(v_rotated_im, MAX_Q15, vl);
+                v_rotated_im = __riscv_vmax_vx_i32m2(v_rotated_im, MIN_Q15, vl);
+                
+                vint32m2_t v_prb_re = __riscv_vle32_v_i32m2(&prbAcc[iSc].re, vl);
+                vint32m2_t v_prb_im = __riscv_vle32_v_i32m2(&prbAcc[iSc].im, vl);
+                v_prb_re = __riscv_vadd_vv_i32m2(v_prb_re, v_rotated_re, vl);
+                v_prb_im = __riscv_vadd_vv_i32m2(v_prb_im, v_rotated_im, vl);
+                __riscv_vse32_v_i32m2(&prbAcc[iSc].re, v_prb_re, vl);
+                __riscv_vse32_v_i32m2(&prbAcc[iSc].im, v_prb_im, vl);
+            }
+        }
+    }
+    
+    int32_t maxDelayMetric = 0;
+    *delayIdx = 0;
+    
+    for (uint32_t iDelay = 0; iDelay < NUM_DLY; ++iDelay)
+    {
+        vint32m2_t v_metric_re = __riscv_vmv_v_x_i32m2(0, vl);
+        vint32m2_t v_metric_im = __riscv_vmv_v_x_i32m2(0, vl);
+        
+        for (uint32_t iSc = 0; iSc < NUM_SC; iSc += vl)
+        {
+            vl = __riscv_vsetvl_e16m1(NUM_SC - iSc);
+            
+            vint16m1_t v_delayRe = __riscv_vle16_v_i16m1(&delayRotators[iDelay][iSc].re, vl);
+            vint16m1_t v_delayIm = __riscv_vle16_v_i16m1(&delayRotators[iDelay][iSc].im, vl);
+            
+            // Округление prbAcc к int16
+            vint32m2_t v_prbRe = __riscv_vle32_v_i32m2(&prbAcc[iSc].re, vl);
+            vint32m2_t v_prbIm = __riscv_vle32_v_i32m2(&prbAcc[iSc].im, vl);
+            vint16m1_t v_prbRe_16 = __riscv_vnsra_wx_i16m1(v_prbRe, 10, vl);
+            vint16m1_t v_prbIm_16 = __riscv_vnsra_wx_i16m1(v_prbIm, 10, vl);
+            
+            // Complex multiplication
+            vint32m2_t v_val_re = __riscv_vsub_vv_i32m2(
+                __riscv_vwmul_vv_i32m2(v_delayRe, v_prbRe_16, vl),
+                __riscv_vwmul_vv_i32m2(v_delayIm, v_prbIm_16, vl), vl);
+            
+            vint32m2_t v_val_im = __riscv_vadd_vv_i32m2(
+                __riscv_vwmul_vv_i32m2(v_delayIm, v_prbRe_16, vl),
+                __riscv_vwmul_vv_i32m2(v_delayRe, v_prbIm_16, vl), vl);
+            
+            v_metric_re = __riscv_vadd_vv_i32m2(v_metric_re, v_val_re, vl);
+            v_metric_im = __riscv_vadd_vv_i32m2(v_metric_im, v_val_im, vl);
+        }
+        
+        int32_t metric_re[8], metric_im[8];
+        __riscv_vse32_v_i32m2(metric_re, v_metric_re, vl);
+        __riscv_vse32_v_i32m2(metric_im, v_metric_im, vl);
+        
+        int32_t sum_re = 0, sum_im = 0;
+        for (size_t j = 0; j < vl; j++)
+        {
+            sum_re += metric_re[j];
+            sum_im += metric_im[j];
+        }
+        
+        int32_t delay_metric = sum_re * sum_re + sum_im * sum_im;
+        
+        if (delay_metric > maxDelayMetric)
+        {
+            maxDelayMetric = delay_metric;
+            *delayIdx = iDelay;
+        }
+    }
+}
+
 const T16sc src[SYM_SFRAME][MAX_ANT][NUM_SC] =
 {
  {
@@ -593,3 +792,61 @@ int main(void)
 
     return 0;
 }
+
+
+for (uint32_t iAnt = 0; iAnt < MAX_ANT; ++iAnt)
+        {
+            vint32m2_t v_acc_re = __riscv_vmv_v_x_i32m2(0, vl);
+            vint32m2_t v_acc_im = __riscv_vmv_v_x_i32m2(0, vl);
+            int32_t scalar_phasor_re = 0;
+            int32_t scalar_phasor_im = 0;
+
+            
+            
+            for (uint32_t iSc = 0; iSc + vl <= NUM_SC; iSc += vl)
+            {
+                vl = __riscv_vsetvl_e16m1(NUM_SC - iSc);
+                
+                for (uint32_t iSymb = 0; iSymb < NUM_SYM_SLOT; ++iSymb)
+                {
+                    uint32_t symbIdx = iSymb + iSlot * NUM_SYM_SLOT;
+
+                    vint16m1_t v_txRe = __riscv_vle16_v_i16m1(txDataRe[symbIdx] + iSc, vl);
+                    vint16m1_t v_txIm = __riscv_vle16_v_i16m1(txDataIm[symbIdx] + iSc, vl);
+                    vint16m1_t v_bsRe = __riscv_vle16_v_i16m1(baseSeqRe[symbIdx] + iSc, vl);
+                    vint16m1_t v_bsIm = __riscv_vle16_v_i16m1(baseSeqIm[symbIdx] + iSc, vl);
+                    
+                    vint16m1_t v_srcRe = __riscv_vle16_v_i16m1(srcRe[symbIdx][iAnt] + iSc, vl);
+                    vint16m1_t v_srcIm = __riscv_vle16_v_i16m1(srcIm[symbIdx][iAnt] + iSc, vl);
+
+                    vint16m1_t v_ref_re = __riscv_vsub_vv_i16m1(__riscv_vmul_vv_i16m1(v_txRe, v_bsRe, vl),
+                                                         __riscv_vmul_vv_i16m1(v_txIm, v_bsIm, vl), vl);
+                    vint16m1_t v_ref_im = __riscv_vadd_vv_i16m1(__riscv_vmul_vv_i16m1(v_txIm, v_bsRe, vl),
+                                                         __riscv_vmul_vv_i16m1(v_txRe, v_bsIm, vl), vl);
+
+                    vint32m2_t v_iq_re = __riscv_vadd_vv_i32m2(__riscv_vwmul_vv_i32m2(v_srcRe, v_ref_re, vl),
+                                                        __riscv_vwmul_vv_i32m2(v_srcIm, v_ref_im, vl), vl);
+                    vint32m2_t v_iq_im = __riscv_vsub_vv_i32m2(__riscv_vwmul_vv_i32m2(v_srcIm, v_ref_re, vl),
+                                                        __riscv_vwmul_vv_i32m2(v_srcRe, v_ref_im, vl), vl);
+
+                    v_iq_re = __riscv_vsra_vx_i32m2(v_iq_re, 15, vl);
+                    v_iq_im = __riscv_vsra_vx_i32m2(v_iq_im, 15, vl);
+
+                    v_acc_re = __riscv_vadd_vv_i32m2(v_acc_re, v_iq_re, vl);
+                    v_acc_im = __riscv_vadd_vv_i32m2(v_acc_im, v_iq_im, vl);
+                }
+
+                __riscv_vse32_v_i32m2(slotAveragedRe[iAnt] + iSc, v_acc_re, vl);
+                __riscv_vse32_v_i32m2(slotAveragedIm[iAnt] + iSc, v_acc_im, vl);
+
+                // Скалярная редукция для фазора (можно сделать векторной редукцией)
+                for (uint32_t j = 0; j < vl; j++)
+                {
+                    scalar_phasor_re += slotAveragedRe[iAnt][iSc + j];
+                    scalar_phasor_im += slotAveragedIm[iAnt][iSc + j];
+                }
+            }
+
+            slotPhasorRe[iAnt] = scalar_phasor_re;
+            slotPhasorIm[iAnt] = scalar_phasor_im;
+        }
