@@ -3,6 +3,7 @@
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <time.h>
 
 #include <riscv_vector.h>
 
@@ -13,8 +14,8 @@ typedef struct {
 
 static uint64_t getCycles()
 {
-    uint64_t cycles;
-    asm volatile("csrrs %0, 0xc00, x0" : "=r"(cycles));
+    uint64_t cycles = 0;
+    asm volatile("csrr %0, 0xc01" : "=r"(cycles));
     return cycles;
 }
 
@@ -34,6 +35,14 @@ static const char* const modulationNames[] = {
     [Qam16]  = "Qam16",
     [Qam64]  = "Qam64",
     [Qam256] = "Qam256"
+};
+
+static const size_t modulationBits[] = {
+    [Bpsk]   = 1ul,
+    [Qpsk]   = 2ul,
+    [Qam16]  = 4ul,
+    [Qam64]  = 6ul,
+    [Qam256] = 8ul
 };
 
 static const int16_t C_PSK    = (int16_t)(16384.f / sqrt(2.f));
@@ -87,10 +96,10 @@ static const T16sc mod64QAM[] =
 };
 
 static const int16_t mod64QAM_LUT[]  = {
-    3 * C_64QAM, C_64QAM, 5 * C_64QAM, 7 * C_64QAM, -3 * C_64QAM, -C_64QAM, -7 * C_64QAM, -5 * C_64QAM,
-    3 * C_64QAM, C_64QAM, 5 * C_64QAM, 7 * C_64QAM, -3 * C_64QAM, -C_64QAM, -7 * C_64QAM, -5 * C_64QAM,
-    3 * C_64QAM, C_64QAM, 5 * C_64QAM, 7 * C_64QAM, -3 * C_64QAM, -C_64QAM, -7 * C_64QAM, -5 * C_64QAM,
-    3 * C_64QAM, C_64QAM, 5 * C_64QAM, 7 * C_64QAM, -3 * C_64QAM, -C_64QAM, -7 * C_64QAM, -5 * C_64QAM
+    3 * C_64QAM, C_64QAM, 5 * C_64QAM, 7 * C_64QAM, -3 * C_64QAM, -C_64QAM, -5 * C_64QAM, -7 * C_64QAM,
+    3 * C_64QAM, C_64QAM, 5 * C_64QAM, 7 * C_64QAM, -3 * C_64QAM, -C_64QAM, -5 * C_64QAM, -7 * C_64QAM,
+    3 * C_64QAM, C_64QAM, 5 * C_64QAM, 7 * C_64QAM, -3 * C_64QAM, -C_64QAM, -5 * C_64QAM, -7 * C_64QAM,
+    3 * C_64QAM, C_64QAM, 5 * C_64QAM, 7 * C_64QAM, -3 * C_64QAM, -C_64QAM, -5 * C_64QAM, -7 * C_64QAM
 };
 
 static const T16sc mod256QAM[] =
@@ -208,10 +217,12 @@ void optBPSK(const uint8_t *pSrc, T16sc *pDst, uint32_t length)
         vint16m4_t out = __riscv_vmv_v_x_i16m4(C_PSK, vl);
 
         vbool4_t mask = __riscv_vmseq_vx_i8m2_b4(src, 1, vl);
-        //out = __riscv_vmerge_vxm_i16m4(mask, out, -C_PSK, vl);
+        out = __riscv_vmerge_vxm_i16m4(out, -C_PSK, mask, vl);
         vint16m4_t outDup = __riscv_vmv_v_v_i16m4(out, vl);
 
-        //__riscv_vsseg2e16_v_i16m4((int16_t*)pDst + i * 2, out, outDup, vl);
+	vint16m4x2_t outSeg = __riscv_vcreate_v_i16m4x2(out, outDup);
+
+        __riscv_vsseg2e16_v_i16m4x2((int16_t*)pDst + i * 2, outSeg, vl);
 
         i += vl;
     }
@@ -231,11 +242,13 @@ void optQPSK(const uint8_t *pSrc, T16sc *pDst, uint32_t length)
         vint8m2_t srcIm = __riscv_vand_vx_i8m2(src, 0x1, vl);
 
         vbool4_t maskRe = __riscv_vmseq_vx_i8m2_b4(srcRe, 0x2, vl);
-        //outRe = __riscv_vmerge_vxm_i16m4(maskRe, outRe, -C_PSK, vl);
+        outRe = __riscv_vmerge_vxm_i16m4(outRe, -C_PSK, maskRe, vl);
         vbool4_t maskIm = __riscv_vmseq_vx_i8m2_b4(srcIm, 0x1, vl);
-        //outIm = __riscv_vmerge_vxm_i16m4(maskIm, outIm, -C_PSK, vl);
+        outIm = __riscv_vmerge_vxm_i16m4(outIm, -C_PSK, maskIm, vl);
 
-        //__riscv_vsseg2e16_v_i16m4((int16_t*)pDst + i * 2, outRe, outIm, vl);
+	vint16m4x2_t outSeg = __riscv_vcreate_v_i16m4x2(outRe, outIm);
+
+        __riscv_vsseg2e16_v_i16m4x2((int16_t*)pDst + i * 2, outSeg, vl);
 
         i += vl;
     }
@@ -264,13 +277,16 @@ void optQAM16(const uint8_t *pSrc, T16sc *pDst, uint32_t length)
         vuint8m2_t grouped = __riscv_vand_vx_u8m2(src, 0x9, vl);
         grouped = __riscv_vor_vv_u8m2(grouped, swapped, vl);
 
-        vuint16m4_t srcRe = __riscv_vwcvtu_x_x_v_u16m4(__riscv_vand_vx_u8m2(grouped, 0xC, vl), vl);
-        vuint16m4_t srcIm = __riscv_vwcvtu_x_x_v_u16m4(__riscv_vand_vx_u8m2(grouped, 0x3, vl), vl);
+        vuint16m4_t srcRe = __riscv_vwcvtu_x_x_v_u16m4(__riscv_vsrl_vx_u8m2(__riscv_vand_vx_u8m2(grouped, 0xC, vl), 0x2, vl), vl);
+	vuint16m4_t srcIm = __riscv_vwcvtu_x_x_v_u16m4(__riscv_vand_vx_u8m2(grouped, 0x3, vl), vl);
+
 
         vint16m4_t outRe = __riscv_vrgather_vv_i16m4(tableRe, srcRe, vl);
         vint16m4_t outIm = __riscv_vrgather_vv_i16m4(tableIm, srcIm, vl);
 
-        //__riscv_vsseg2e16_v_i16m4((int16_t*)pDst + i * 2, outRe, outIm, vl);
+	vint16m4x2_t outSeg = __riscv_vcreate_v_i16m4x2(outRe, outIm);
+
+        __riscv_vsseg2e16_v_i16m4x2((int16_t*)pDst + i * 2, outSeg, vl);
 
         i += vl;
     }
@@ -291,13 +307,15 @@ void optQAM16_proxy(const uint8_t *pSrc, T16sc *pDst, uint32_t length)
 
         vuint8m2_t grouped = __riscv_vand_vx_u8m2(src, 0x9, vl); // assume it is vector unzip
 
-        vuint16m4_t srcRe = __riscv_vwcvtu_x_x_v_u16m4(__riscv_vand_vx_u8m2(grouped, 0xC, vl), vl);
+        vuint16m4_t srcRe = __riscv_vwcvtu_x_x_v_u16m4(__riscv_vsrl_vx_u8m2(__riscv_vand_vx_u8m2(grouped, 0xC, vl), 0x2, vl), vl);
         vuint16m4_t srcIm = __riscv_vwcvtu_x_x_v_u16m4(__riscv_vand_vx_u8m2(grouped, 0x3, vl), vl);
 
         vint16m4_t outRe = __riscv_vrgather_vv_i16m4(tableRe, srcRe, vl);
         vint16m4_t outIm = __riscv_vrgather_vv_i16m4(tableIm, srcIm, vl);
 
-        //__riscv_vsseg2e16_v_i16m4((int16_t*)pDst + i * 2, outRe, outIm, vl);
+	vint16m4x2_t outSeg = __riscv_vcreate_v_i16m4x2(outRe, outIm);
+
+        __riscv_vsseg2e16_v_i16m4x2((int16_t*)pDst + i * 2, outSeg, vl);
 
         i += vl;
     }
@@ -333,13 +351,15 @@ void optQAM64(const uint8_t *pSrc, T16sc *pDst, uint32_t length)
         vuint8m2_t grouped = __riscv_vand_vx_u8m2(src, 0x21, vl);
         grouped = __riscv_vor_vv_u8m2(grouped, swapped, vl);
 
-        vuint16m4_t srcRe = __riscv_vwcvtu_x_x_v_u16m4(__riscv_vand_vx_u8m2(grouped, 0x38, vl), vl);
+        vuint16m4_t srcRe = __riscv_vwcvtu_x_x_v_u16m4(__riscv_vsrl_vx_u8m2(__riscv_vand_vx_u8m2(grouped, 0x38, vl), 0x3, vl), vl);
         vuint16m4_t srcIm = __riscv_vwcvtu_x_x_v_u16m4(__riscv_vand_vx_u8m2(grouped, 0x07, vl), vl);
 
         vint16m4_t outRe = __riscv_vrgather_vv_i16m4(tableRe, srcRe, vl);
         vint16m4_t outIm = __riscv_vrgather_vv_i16m4(tableIm, srcIm, vl);
 
-        //__riscv_vsseg2e16_v_i16m4((int16_t*)pDst + i * 2, outRe, outIm, vl);
+	vint16m4x2_t outSeg = __riscv_vcreate_v_i16m4x2(outRe, outIm);
+
+        __riscv_vsseg2e16_v_i16m4x2((int16_t*)pDst + i * 2, outSeg, vl);
 
         i += vl;
     }
@@ -360,13 +380,15 @@ void optQAM64_proxy(const uint8_t *pSrc, T16sc *pDst, uint32_t length)
 
         vuint8m2_t grouped = __riscv_vand_vx_u8m2(src, 0x9, vl); // assume it is vector unzip
 
-        vuint16m4_t srcRe = __riscv_vwcvtu_x_x_v_u16m4(__riscv_vand_vx_u8m2(grouped, 0x38, vl), vl);
+        vuint16m4_t srcRe = __riscv_vwcvtu_x_x_v_u16m4(__riscv_vsrl_vx_u8m2(__riscv_vand_vx_u8m2(grouped, 0x38, vl), 0x3, vl), vl);
         vuint16m4_t srcIm = __riscv_vwcvtu_x_x_v_u16m4(__riscv_vand_vx_u8m2(grouped, 0x07, vl), vl);
 
         vint16m4_t outRe = __riscv_vrgather_vv_i16m4(tableRe, srcRe, vl);
         vint16m4_t outIm = __riscv_vrgather_vv_i16m4(tableIm, srcIm, vl);
 
-        //__riscv_vsseg2e16_v_i16m4((int16_t*)pDst + i * 2, outRe, outIm, vl);
+	vint16m4x2_t outSeg = __riscv_vcreate_v_i16m4x2(outRe, outIm);
+
+        __riscv_vsseg2e16_v_i16m4x2((int16_t*)pDst + i * 2, outSeg, vl);
 
         i += vl;
     }
@@ -410,13 +432,15 @@ void optQAM256(const uint8_t *pSrc, T16sc *pDst, uint32_t length)
         vuint8m2_t grouped = __riscv_vand_vx_u8m2(src, 0x81, vl);
         grouped = __riscv_vor_vv_u8m2(grouped, swapped, vl);
 
-        vuint16m4_t srcRe = __riscv_vwcvtu_x_x_v_u16m4(__riscv_vand_vx_u8m2(grouped, 0xF0, vl), vl);
+        vuint16m4_t srcRe = __riscv_vwcvtu_x_x_v_u16m4(__riscv_vsrl_vx_u8m2(__riscv_vand_vx_u8m2(grouped, 0xF0, vl), 0x4, vl), vl);
         vuint16m4_t srcIm = __riscv_vwcvtu_x_x_v_u16m4(__riscv_vand_vx_u8m2(grouped, 0x0F, vl), vl);
 
         vint16m4_t outRe = __riscv_vrgather_vv_i16m4(tableRe, srcRe, vl);
         vint16m4_t outIm = __riscv_vrgather_vv_i16m4(tableIm, srcIm, vl);
 
-        //__riscv_vsseg2e16_v_i16m4((int16_t*)pDst + i * 2, outRe, outIm, vl);
+	vint16m4x2_t outSeg = __riscv_vcreate_v_i16m4x2(outRe, outIm);
+
+        __riscv_vsseg2e16_v_i16m4x2((int16_t*)pDst + i * 2, outSeg, vl);
 
         i += vl;
     }
@@ -437,13 +461,15 @@ void optQAM256_proxy(const uint8_t *pSrc, T16sc *pDst, uint32_t length)
 
         vuint8m2_t grouped = __riscv_vand_vx_u8m2(src, 0x9, vl); // assume it is vector unzip
 
-        vuint16m4_t srcRe = __riscv_vwcvtu_x_x_v_u16m4(__riscv_vand_vx_u8m2(grouped, 0xF0, vl), vl);
+        vuint16m4_t srcRe = __riscv_vwcvtu_x_x_v_u16m4(__riscv_vsrl_vx_u8m2(__riscv_vand_vx_u8m2(grouped, 0xF0, vl), 0x4, vl), vl);
         vuint16m4_t srcIm = __riscv_vwcvtu_x_x_v_u16m4(__riscv_vand_vx_u8m2(grouped, 0x0F, vl), vl);
 
         vint16m4_t outRe = __riscv_vrgather_vv_i16m4(tableRe, srcRe, vl);
         vint16m4_t outIm = __riscv_vrgather_vv_i16m4(tableIm, srcIm, vl);
 
-        //__riscv_vsseg2e16_v_i16m4((int16_t*)pDst + i * 2, outRe, outIm, vl);
+	vint16m4x2_t outSeg = __riscv_vcreate_v_i16m4x2(outRe, outIm);
+
+        __riscv_vsseg2e16_v_i16m4x2((int16_t*)pDst + i * 2, outSeg, vl);
 
         i += vl;
     }
@@ -451,9 +477,19 @@ void optQAM256_proxy(const uint8_t *pSrc, T16sc *pDst, uint32_t length)
 
 int main()
 {
+    size_t MAX_SIZE = 1200;
+
     size_t lengths[] = {12, 24, 36, 48, 60, 72, 96, 108, 120, 144, 
-        180, 192, 216, 240, 288, 300, 324, 360, 384, 432, 480, 540, 
-        576, 600, 648, 720, 768, 864, 900, 960, 972, 1080, 1152, 1200};
+	180, 192, 216, 240, 288, 300, 324, 360, 384, 432, 480, 540, 
+        576, 600, 648, 720, 768, 864, 900, 960, 972, 1080, 1152, MAX_SIZE};
+
+
+    uint8_t *pSrc = (uint8_t*)malloc(sizeof(uint8_t) * MAX_SIZE);
+    for (size_t i = 0; i < MAX_SIZE; ++i)
+    {
+        pSrc[i] = rand();
+    }
+    T16sc *pDst = (T16sc*)malloc(sizeof(T16sc) * MAX_SIZE);
 
     size_t lengths_N = sizeof(lengths) / sizeof(*lengths);
     
@@ -465,11 +501,6 @@ int main()
     do {                                                                            \
         for (size_t length_i = 0; length_i < lengths_N; ++length_i) {               \
             uint32_t length = lengths[length_i];                                    \
-            uint8_t *pSrc = (uint8_t*)malloc(sizeof(uint8_t) * length);             \
-            for (size_t i = 0; i < length; ++i) {                                   \
-                pSrc[i] = rand();                                                   \
-            }                                                                       \
-            T16sc *pDst = (T16sc*)malloc(sizeof(T16sc) * length);                   \
                                                                                     \
             fprintf(resOutput, FUNC_TYPE",%s,%u", modulationNames[QAM_I], length);  \
             for (size_t i = 0; i < repeats; ++i) {                                  \
@@ -477,22 +508,29 @@ int main()
                 MOD_FUNC;                                                           \
                 uint64_t finish = getCycles();                                      \
                 uint64_t elapsed = finish - start;                                  \
-                fprintf(resOutput, ",%lu", (unsigned long)elapsed);                 \
+		fprintf(resOutput, ",%lu", elapsed);  			            \
                 volatile int res = pDst[2].re; /* prevent optimization */           \
                 (void)res;                                                          \
             }                                                                       \
             fprintf(resOutput, "\n");                                               \
-            free(pSrc);                                                             \
-            free(pDst);                                                             \
         }                                                                           \
     } while(0)
 
+    uint8_t *pSrcTmp = (uint8_t*)malloc(sizeof(uint8_t) * MAX_SIZE);
     for (size_t qam_i = 0; qam_i < (size_t)QAM_N; ++qam_i ) {
         const T16sc *modTable = getModTable((Modulation_t)qam_i);
-        BENCHMARK_MODULATION("origin", qam_i, modulation(pSrc, pDst, length, modTable));
+	for (size_t i = 0; i < MAX_SIZE; ++i)
+	{
+	    pSrcTmp[i] = pSrc[i] % (1ul << modulationBits[qam_i]);
+	}
+        BENCHMARK_MODULATION("origin", qam_i, modulation(pSrcTmp, pDst, length, modTable));
     }
-
-    BENCHMARK_MODULATION("optimized", Bpsk,   optBPSK(pSrc, pDst, length));
+    
+    for (size_t i = 0; i < MAX_SIZE; ++i) // special case for Bpsk implementation
+    {
+    	pSrcTmp[i] = pSrc[i] % 2;
+    }
+    BENCHMARK_MODULATION("optimized", Bpsk,   optBPSK(pSrcTmp, pDst, length));
     BENCHMARK_MODULATION("optimized", Qpsk,   optQPSK(pSrc, pDst, length));
     BENCHMARK_MODULATION("optimized", Qam16,  optQAM16(pSrc, pDst, length));
     BENCHMARK_MODULATION("optimized", Qam64,  optQAM64(pSrc, pDst, length));
