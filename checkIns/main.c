@@ -1,4 +1,12 @@
 #include <stdio.h>
+#include <stdint.h>
+
+static uint64_t getCycles()
+{
+   uint64_t cycles = 0;
+   asm volatile("csrr %0, 0xc01" : "=r"(cycles));
+   return cycles;
+}
 
 #define UNROLL_4096(X)  \
     UNROLL_1024(X)      \
@@ -60,30 +68,54 @@
     X" "REG_TYPE"15, "REG_TYPE"16, 3 \n\t"       \
     X" "REG_TYPE"18, "REG_TYPE"19, 3 \n\t"       \
 
-#define CHECK_OPER(INSTR, REG_TYPE, OPER, RET)              \
+#define CHECK_OPER(INSTR, TYPE, OPER, RET)                  \
 do {                                                        \
-    long start = getTime();                                 \
+    uint64_t start = getCycles();                           \
     asm volatile(                                           \
         "vsetvli t0, zero, e16, m1 \n\t"                    \
-        UNROLL_16(OPER(INSTR, REG_TYPE))                    \
+        UNROLL_4096(OPER)                                   \
     );                                                      \
-    long end = getTime();                                   \
-    RET = start - end;                                      \
-    printf(OPER" for "INSTR": %ld cycles\n", RET);          \
+    uint64_t end = getCycles();                             \
+    RET = end - start;                                      \
 } while (0)
 
 int main()
 {
-    long elapsed;
-    CHECK_OPER("vand.vi", "v", LATENCY_SCALAR_BLOCK, elapsed);
-    CHECK_OPER("vand.vi", "v", THROUGHPUT_SCALAR_BLOCK, elapsed);
+    const size_t N = 256;
+    double average[1024];
+    for (int i = 0; i < 1024; ++i)
+    {
+	average[i] = 0.0;
+    }
+    uint64_t elapsed;
+    for (int i = 0; i < N; ++i)
+    {
+    	CHECK_OPER("vand.vi", "LATENCY", LATENCY_SCALAR_BLOCK("vand.vi", "v"), elapsed);
+	average[0] += elapsed;
+        CHECK_OPER("vand.vi", "THROUGHPUT", THROUGHPUT_SCALAR_BLOCK("vand.vi", "v"), elapsed);    
+	average[1] += elapsed;
 
-    CHECK_OPER("vsrl.vi", "v", LATENCY_SCALAR_BLOCK, elapsed);
-    CHECK_OPER("vsrl.vi", "v", THROUGHPUT_SCALAR_BLOCK, elapsed);
+    	CHECK_OPER("vsrl.vi", "LATENCY", LATENCY_SCALAR_BLOCK("vsrl.vi", "v"), elapsed);
+	average[2] += elapsed;
+        CHECK_OPER("vsrl.vi", "THROUGHPUT", THROUGHPUT_SCALAR_BLOCK("vsrl.vi", "v"), elapsed);    
+	average[3] += elapsed;
 
-    CHECK_OPER("vor.vv", "v", LATENCY_BLOCK, elapsed);
-    CHECK_OPER("vor.vv", "v", THROUGHPUT_BLOCK, elapsed);
+    	CHECK_OPER("vor.vv", "LATENCY", LATENCY_BLOCK("vor.vv", "v"), elapsed);
+	average[4] += elapsed;
+        CHECK_OPER("vor.vv", "THROUGHPUT", THROUGHPUT_BLOCK("vor.vv", "v"), elapsed);    
+	average[5] += elapsed;
 
+	//CHECK_OPER(LATENCY_SCALAR_BLOCK("vsrl,vi", "v"), elapsed);
+    	//CHECK_OPER(THROUGHPUT_SCALAR_BLOCK, elapsed);
+
+    	//CHECK_OPER("vor.vv", "v", LATENCY_BLOCK, elapsed);
+    	//CHECK_OPER("vor.vv", "v", THROUGHPUT_BLOCK, elapsed);
+    }
+
+    for (size_t i = 0; i < 6; ++i)
+    {
+    	printf("average: %f\n", average[i] / N);
+    }
     //CHECK_LATENCY("vrgather.vv", "v", elapsed);
     //CHECK_THROUGHPUT("vrgather.vv", "v", elapsed);
 }

@@ -1,0 +1,6 @@
+average: 316.597656
+average: 1403.246094
+average: 318.558594
+average: 1388.664062
+average: 316.011719
+average: 1371.242188
