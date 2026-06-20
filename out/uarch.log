@@ -1,0 +1,18 @@
+VLEN: 256
+
+Detect all1s tail/mask policy with simple code snippet:
+Tail agnostic policy: undisturbed
+Mask agnostic policy: undisturbed
+Is vl always set to min(AVL,VLMAX): yes
+    Note: spec allows ceil(AVL/2)<=vl<=VLMAX for VLMAX<AVL<2*VLMAX
+
+Measures how LMUL scheduling impacts when results are ready:
+A) LMUL=8 v0 overlap with LMUL=1 v0:     427.5867795 cycles/iter
+B) LMUL=8 v0 overlap with LMUL=1 v3:     425.5710248 cycles/iter
+C) LMUL=8 v0 overlap with LMUL=1 v7:     439.6177453 cycles/iter
+D) LMUL=8 v0 overlap with LMUL=1 v8:     428.5841922 cycles/iter
+E) LMUL=8 v0 overlap with LMUL=1 v0..v8: 375.5126552 cycles/iter
+
+Measures overhead of reinterpreting a mask as a vector:
+A) reinterpret:       16.0136651 cycles/iter
+B) don't reinterpret: 15.0143852 cycles/iter
