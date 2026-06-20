@@ -68,11 +68,11 @@ static const T16sc mod16QAM[] =
     {-C_16QAM, -C_16QAM}, {-C_16QAM, -3 * C_16QAM}, {-3 * C_16QAM, -C_16QAM}, {-3 * C_16QAM, -3 * C_16QAM}
 };
 
-static const int16_t mod16QAM_LUT[]  = {
-    C_16QAM, 3 * C_16QAM, -C_16QAM, 3 * -C_16QAM, C_16QAM, 3 * C_16QAM, -C_16QAM, 3 * -C_16QAM,
-    C_16QAM, 3 * C_16QAM, -C_16QAM, 3 * -C_16QAM, C_16QAM, 3 * C_16QAM, -C_16QAM, 3 * -C_16QAM,
-    C_16QAM, 3 * C_16QAM, -C_16QAM, 3 * -C_16QAM, C_16QAM, 3 * C_16QAM, -C_16QAM, 3 * -C_16QAM,
-    C_16QAM, 3 * C_16QAM, -C_16QAM, 3 * -C_16QAM, C_16QAM, 3 * C_16QAM, -C_16QAM, 3 * -C_16QAM
+static const int8_t mod16QAM_LUT[]  = {
+    1, 3, -1, 3, 1, 3, -1, 3,
+    1, 3, -1, 3, 1, 3, -1, 3,
+    1, 3, -1, 3, 1, 3, -1, 3,
+    1, 3, -1, 3, 1, 3, -1, 3
 };
 
 static const T16sc mod64QAM[] =
@@ -95,11 +95,11 @@ static const T16sc mod64QAM[] =
     {-5 * C_64QAM, -5 * C_64QAM}, {-5 * C_64QAM, -7 * C_64QAM}, {-7 * C_64QAM, -5 * C_64QAM}, {-7 * C_64QAM, -7 * C_64QAM}
 };
 
-static const int16_t mod64QAM_LUT[]  = {
-    3 * C_64QAM, C_64QAM, 5 * C_64QAM, 7 * C_64QAM, -3 * C_64QAM, -C_64QAM, -5 * C_64QAM, -7 * C_64QAM,
-    3 * C_64QAM, C_64QAM, 5 * C_64QAM, 7 * C_64QAM, -3 * C_64QAM, -C_64QAM, -5 * C_64QAM, -7 * C_64QAM,
-    3 * C_64QAM, C_64QAM, 5 * C_64QAM, 7 * C_64QAM, -3 * C_64QAM, -C_64QAM, -5 * C_64QAM, -7 * C_64QAM,
-    3 * C_64QAM, C_64QAM, 5 * C_64QAM, 7 * C_64QAM, -3 * C_64QAM, -C_64QAM, -5 * C_64QAM, -7 * C_64QAM
+static const int8_t mod64QAM_LUT[]  = {
+    3, 1, 5, 7, -3, -1, -5, -7,
+    3, 1, 5, 7, -3, -1, -5, -7,
+    3, 1, 5, 7, -3, -1, -5, -7,
+    3, 1, 5, 7, -3, -1, -5, -7
 };
 
 static const T16sc mod256QAM[] =
@@ -173,11 +173,11 @@ static const T16sc mod256QAM[] =
     {-13 * C_256QAM,-13 * C_256QAM}, {-13 * C_256QAM,-15 * C_256QAM}, {-15 * C_256QAM,-13 * C_256QAM}, {-15 * C_256QAM,-15 * C_256QAM}
 };
 
-static const int16_t mod256QAM_LUT[]  = {
-     5 * C_256QAM,  7 * C_256QAM,  3 * C_256QAM,  1 * C_256QAM,   11 * C_256QAM,  9 * C_256QAM,   13 * C_256QAM,  15 * C_256QAM,
-    -5 * C_256QAM, -7 * C_256QAM, -3 * C_256QAM, -1 * C_256QAM,  -11 * C_256QAM, -9 * C_256QAM,  -13 * C_256QAM, -15 * C_256QAM,
-     5 * C_256QAM,  7 * C_256QAM,  3 * C_256QAM,  1 * C_256QAM,   11 * C_256QAM,  9 * C_256QAM,   13 * C_256QAM,  15 * C_256QAM,
-    -5 * C_256QAM, -7 * C_256QAM, -3 * C_256QAM, -1 * C_256QAM,  -11 * C_256QAM, -9 * C_256QAM,  -13 * C_256QAM, -15 * C_256QAM,
+static const int8_t mod256QAM_LUT[]  = {
+     5,  7,  3,  1,   11,  9,   13,  15,
+    -5, -7, -3, -1,  -11, -9,  -13, -15,
+     5,  7,  3,  1,   11,  9,   13,  15,
+    -5, -7, -3, -1,  -11, -9,  -13, -15,
 };
 
 static const T16sc *getModTable(Modulation_t modType)
@@ -220,7 +220,7 @@ void optBPSK(const uint8_t *pSrc, T16sc *pDst, uint32_t length)
         out = __riscv_vmerge_vxm_i16m4(out, -C_PSK, mask, vl);
         vint16m4_t outDup = __riscv_vmv_v_v_i16m4(out, vl);
 
-	vint16m4x2_t outSeg = __riscv_vcreate_v_i16m4x2(out, outDup);
+	    vint16m4x2_t outSeg = __riscv_vcreate_v_i16m4x2(out, outDup);
 
         __riscv_vsseg2e16_v_i16m4x2((int16_t*)pDst + i * 2, outSeg, vl);
 
@@ -246,7 +246,7 @@ void optQPSK(const uint8_t *pSrc, T16sc *pDst, uint32_t length)
         vbool4_t maskIm = __riscv_vmseq_vx_i8m2_b4(srcIm, 0x1, vl);
         outIm = __riscv_vmerge_vxm_i16m4(outIm, -C_PSK, maskIm, vl);
 
-	vint16m4x2_t outSeg = __riscv_vcreate_v_i16m4x2(outRe, outIm);
+	    vint16m4x2_t outSeg = __riscv_vcreate_v_i16m4x2(outRe, outIm);
 
         __riscv_vsseg2e16_v_i16m4x2((int16_t*)pDst + i * 2, outSeg, vl);
 
@@ -256,10 +256,10 @@ void optQPSK(const uint8_t *pSrc, T16sc *pDst, uint32_t length)
 
 void optQAM16(const uint8_t *pSrc, T16sc *pDst, uint32_t length)
 {
-    size_t table_vl =  __riscv_vsetvl_e16m1(sizeof(mod16QAM_LUT) / sizeof(*mod16QAM_LUT));
+    size_t table_vl =  __riscv_vsetvl_e8m2(sizeof(mod16QAM_LUT) / sizeof(*mod16QAM_LUT));
 
-    vint16m4_t tableRe = __riscv_vle16_v_i16m4(mod16QAM_LUT, table_vl);
-    vint16m4_t tableIm = __riscv_vmv_v_v_i16m4(tableRe, table_vl);
+    vint8m2_t tableRe = __riscv_vle8_v_i8m2(mod16QAM_LUT, table_vl);
+    vint8m2_t tableIm = __riscv_vmv_v_v_i8m2(tableRe, table_vl);
 
     for (uint32_t i = 0; i < length;)
     {
@@ -277,14 +277,16 @@ void optQAM16(const uint8_t *pSrc, T16sc *pDst, uint32_t length)
         vuint8m2_t grouped = __riscv_vand_vx_u8m2(src, 0x9, vl);
         grouped = __riscv_vor_vv_u8m2(grouped, swapped, vl);
 
-        vuint16m4_t srcRe = __riscv_vwcvtu_x_x_v_u16m4(__riscv_vsrl_vx_u8m2(__riscv_vand_vx_u8m2(grouped, 0xC, vl), 0x2, vl), vl);
-	vuint16m4_t srcIm = __riscv_vwcvtu_x_x_v_u16m4(__riscv_vand_vx_u8m2(grouped, 0x3, vl), vl);
+        vuint8m2_t srcRe = __riscv_vsrl_vx_u8m2(__riscv_vand_vx_u8m2(grouped, 0xC, vl), 0x2, vl);
+	    vuint8m2_t srcIm = __riscv_vand_vx_u8m2(grouped, 0x3, vl);
 
+        vint8m2_t outRe = __riscv_vrgather_vv_i8m2(tableRe, srcRe, vl);
+        vint8m2_t outIm = __riscv_vrgather_vv_i8m2(tableIm, srcIm, vl);
 
-        vint16m4_t outRe = __riscv_vrgather_vv_i16m4(tableRe, srcRe, vl);
-        vint16m4_t outIm = __riscv_vrgather_vv_i16m4(tableIm, srcIm, vl);
+        vint16m4_t outWRe = __riscv_vmul_vx_i16m4(__riscv_vwcvt_x_x_v_i16m4(outRe, vl), C_16QAM, vl);
+        vint16m4_t outWIm = __riscv_vmul_vx_i16m4(__riscv_vwcvt_x_x_v_i16m4(outIm, vl), C_16QAM, vl);
 
-	vint16m4x2_t outSeg = __riscv_vcreate_v_i16m4x2(outRe, outIm);
+	    vint16m4x2_t outSeg = __riscv_vcreate_v_i16m4x2(outWRe, outWIm);
 
         __riscv_vsseg2e16_v_i16m4x2((int16_t*)pDst + i * 2, outSeg, vl);
 
@@ -294,10 +296,10 @@ void optQAM16(const uint8_t *pSrc, T16sc *pDst, uint32_t length)
 
 void optQAM16_proxy(const uint8_t *pSrc, T16sc *pDst, uint32_t length)
 {
-    size_t table_vl =  __riscv_vsetvl_e16m1(sizeof(mod16QAM_LUT) / sizeof(*mod16QAM_LUT));
+    size_t table_vl =  __riscv_vsetvl_e8m2(sizeof(mod16QAM_LUT) / sizeof(*mod16QAM_LUT));
 
-    vint16m4_t tableRe = __riscv_vle16_v_i16m4(mod16QAM_LUT, table_vl);
-    vint16m4_t tableIm = __riscv_vmv_v_v_i16m4(tableRe, table_vl);
+    vint8m2_t tableRe = __riscv_vle8_v_i8m2(mod16QAM_LUT, table_vl);
+    vint8m2_t tableIm = __riscv_vmv_v_v_i8m2(tableRe, table_vl);
 
     for (uint32_t i = 0; i < length;)
     {
@@ -307,13 +309,16 @@ void optQAM16_proxy(const uint8_t *pSrc, T16sc *pDst, uint32_t length)
 
         vuint8m2_t grouped = __riscv_vand_vx_u8m2(src, 0x9, vl); // assume it is vector unzip
 
-        vuint16m4_t srcRe = __riscv_vwcvtu_x_x_v_u16m4(__riscv_vsrl_vx_u8m2(__riscv_vand_vx_u8m2(grouped, 0xC, vl), 0x2, vl), vl);
-        vuint16m4_t srcIm = __riscv_vwcvtu_x_x_v_u16m4(__riscv_vand_vx_u8m2(grouped, 0x3, vl), vl);
+        vuint8m2_t srcRe = __riscv_vsrl_vx_u8m2(__riscv_vand_vx_u8m2(grouped, 0xC, vl), 0x2, vl);
+        vuint8m2_t srcIm = __riscv_vand_vx_u8m2(grouped, 0x3, vl);
 
-        vint16m4_t outRe = __riscv_vrgather_vv_i16m4(tableRe, srcRe, vl);
-        vint16m4_t outIm = __riscv_vrgather_vv_i16m4(tableIm, srcIm, vl);
+        vint8m2_t outRe = __riscv_vrgather_vv_i8m2(tableRe, srcRe, vl);
+        vint8m2_t outIm = __riscv_vrgather_vv_i8m2(tableIm, srcIm, vl);
 
-	vint16m4x2_t outSeg = __riscv_vcreate_v_i16m4x2(outRe, outIm);
+        vint16m4_t outWRe = __riscv_vmul_vx_i16m4(__riscv_vwcvt_x_x_v_i16m4(outRe, vl), C_16QAM, vl);
+        vint16m4_t outWIm = __riscv_vmul_vx_i16m4(__riscv_vwcvt_x_x_v_i16m4(outIm, vl), C_16QAM, vl);
+
+	    vint16m4x2_t outSeg = __riscv_vcreate_v_i16m4x2(outWRe, outWIm);
 
         __riscv_vsseg2e16_v_i16m4x2((int16_t*)pDst + i * 2, outSeg, vl);
 
@@ -323,10 +328,10 @@ void optQAM16_proxy(const uint8_t *pSrc, T16sc *pDst, uint32_t length)
 
 void optQAM64(const uint8_t *pSrc, T16sc *pDst, uint32_t length)
 {
-    size_t table_vl =  __riscv_vsetvl_e16m1(sizeof(mod64QAM_LUT) / sizeof(*mod64QAM_LUT));
+    size_t table_vl =  __riscv_vsetvl_e8m2(sizeof(mod64QAM_LUT) / sizeof(*mod64QAM_LUT));
 
-    vint16m4_t tableRe = __riscv_vle16_v_i16m4(mod64QAM_LUT, table_vl);
-    vint16m4_t tableIm = __riscv_vmv_v_v_i16m4(tableRe, table_vl);
+    vint8m2_t tableRe = __riscv_vle8_v_i8m2(mod64QAM_LUT, table_vl);
+    vint8m2_t tableIm = __riscv_vmv_v_v_i8m2(tableRe, table_vl);
 
     for (uint32_t i = 0; i < length;)
     {
@@ -351,13 +356,16 @@ void optQAM64(const uint8_t *pSrc, T16sc *pDst, uint32_t length)
         vuint8m2_t grouped = __riscv_vand_vx_u8m2(src, 0x21, vl);
         grouped = __riscv_vor_vv_u8m2(grouped, swapped, vl);
 
-        vuint16m4_t srcRe = __riscv_vwcvtu_x_x_v_u16m4(__riscv_vsrl_vx_u8m2(__riscv_vand_vx_u8m2(grouped, 0x38, vl), 0x3, vl), vl);
-        vuint16m4_t srcIm = __riscv_vwcvtu_x_x_v_u16m4(__riscv_vand_vx_u8m2(grouped, 0x07, vl), vl);
+        vuint8m2_t srcRe = __riscv_vsrl_vx_u8m2(__riscv_vand_vx_u8m2(grouped, 0x38, vl), 0x3, vl);
+        vuint8m2_t srcIm = __riscv_vand_vx_u8m2(grouped, 0x07, vl);
 
-        vint16m4_t outRe = __riscv_vrgather_vv_i16m4(tableRe, srcRe, vl);
-        vint16m4_t outIm = __riscv_vrgather_vv_i16m4(tableIm, srcIm, vl);
+        vint8m2_t outRe = __riscv_vrgather_vv_i8m2(tableRe, srcRe, vl);
+        vint8m2_t outIm = __riscv_vrgather_vv_i8m2(tableIm, srcIm, vl);
 
-	vint16m4x2_t outSeg = __riscv_vcreate_v_i16m4x2(outRe, outIm);
+        vint16m4_t outWRe = __riscv_vmul_vx_i16m4(__riscv_vwcvt_x_x_v_i16m4(outRe, vl), C_64QAM, vl);
+        vint16m4_t outWIm = __riscv_vmul_vx_i16m4(__riscv_vwcvt_x_x_v_i16m4(outIm, vl), C_64QAM, vl);
+
+	    vint16m4x2_t outSeg = __riscv_vcreate_v_i16m4x2(outWRe, outWIm);
 
         __riscv_vsseg2e16_v_i16m4x2((int16_t*)pDst + i * 2, outSeg, vl);
 
@@ -367,10 +375,10 @@ void optQAM64(const uint8_t *pSrc, T16sc *pDst, uint32_t length)
 
 void optQAM64_proxy(const uint8_t *pSrc, T16sc *pDst, uint32_t length)
 {
-    size_t table_vl =  __riscv_vsetvl_e16m1(sizeof(mod64QAM_LUT) / sizeof(*mod64QAM_LUT));
+    size_t table_vl =  __riscv_vsetvl_e8m2(sizeof(mod64QAM_LUT) / sizeof(*mod64QAM_LUT));
 
-    vint16m4_t tableRe = __riscv_vle16_v_i16m4(mod64QAM_LUT, table_vl);
-    vint16m4_t tableIm = __riscv_vmv_v_v_i16m4(tableRe, table_vl);
+    vint8m2_t tableRe = __riscv_vle8_v_i8m2(mod64QAM_LUT, table_vl);
+    vint8m2_t tableIm = __riscv_vmv_v_v_i8m2(tableRe, table_vl);
 
     for (uint32_t i = 0; i < length;)
     {
@@ -380,13 +388,16 @@ void optQAM64_proxy(const uint8_t *pSrc, T16sc *pDst, uint32_t length)
 
         vuint8m2_t grouped = __riscv_vand_vx_u8m2(src, 0x9, vl); // assume it is vector unzip
 
-        vuint16m4_t srcRe = __riscv_vwcvtu_x_x_v_u16m4(__riscv_vsrl_vx_u8m2(__riscv_vand_vx_u8m2(grouped, 0x38, vl), 0x3, vl), vl);
-        vuint16m4_t srcIm = __riscv_vwcvtu_x_x_v_u16m4(__riscv_vand_vx_u8m2(grouped, 0x07, vl), vl);
+        vuint8m2_t srcRe = __riscv_vsrl_vx_u8m2(__riscv_vand_vx_u8m2(grouped, 0x38, vl), 0x3, vl);
+        vuint8m2_t srcIm = __riscv_vand_vx_u8m2(grouped, 0x07, vl);
 
-        vint16m4_t outRe = __riscv_vrgather_vv_i16m4(tableRe, srcRe, vl);
-        vint16m4_t outIm = __riscv_vrgather_vv_i16m4(tableIm, srcIm, vl);
+        vint8m2_t outRe = __riscv_vrgather_vv_i8m2(tableRe, srcRe, vl);
+        vint8m2_t outIm = __riscv_vrgather_vv_i8m2(tableIm, srcIm, vl);
 
-	vint16m4x2_t outSeg = __riscv_vcreate_v_i16m4x2(outRe, outIm);
+        vint16m4_t outWRe = __riscv_vmul_vx_i16m4(__riscv_vwcvt_x_x_v_i16m4(outRe, vl), C_256QAM, vl);
+        vint16m4_t outWIm = __riscv_vmul_vx_i16m4(__riscv_vwcvt_x_x_v_i16m4(outIm, vl), C_256QAM, vl);
+
+	    vint16m4x2_t outSeg = __riscv_vcreate_v_i16m4x2(outWRe, outWIm);
 
         __riscv_vsseg2e16_v_i16m4x2((int16_t*)pDst + i * 2, outSeg, vl);
 
@@ -396,10 +407,10 @@ void optQAM64_proxy(const uint8_t *pSrc, T16sc *pDst, uint32_t length)
 
 void optQAM256(const uint8_t *pSrc, T16sc *pDst, uint32_t length)
 {
-    size_t table_vl =  __riscv_vsetvl_e16m1(sizeof(mod256QAM_LUT) / sizeof(*mod256QAM_LUT));
+    size_t table_vl =  __riscv_vsetvl_e8m2(sizeof(mod256QAM_LUT) / sizeof(*mod256QAM_LUT));
 
-    vint16m4_t tableRe = __riscv_vle16_v_i16m4(mod256QAM_LUT, table_vl);
-    vint16m4_t tableIm = __riscv_vmv_v_v_i16m4(tableRe, table_vl);
+    vint8m2_t tableRe = __riscv_vle8_v_i8m2(mod256QAM_LUT, table_vl);
+    vint8m2_t tableIm = __riscv_vmv_v_v_i8m2(tableRe, table_vl);
 
     for (uint32_t i = 0; i < length;)
     {
@@ -432,13 +443,16 @@ void optQAM256(const uint8_t *pSrc, T16sc *pDst, uint32_t length)
         vuint8m2_t grouped = __riscv_vand_vx_u8m2(src, 0x81, vl);
         grouped = __riscv_vor_vv_u8m2(grouped, swapped, vl);
 
-        vuint16m4_t srcRe = __riscv_vwcvtu_x_x_v_u16m4(__riscv_vsrl_vx_u8m2(__riscv_vand_vx_u8m2(grouped, 0xF0, vl), 0x4, vl), vl);
-        vuint16m4_t srcIm = __riscv_vwcvtu_x_x_v_u16m4(__riscv_vand_vx_u8m2(grouped, 0x0F, vl), vl);
+        vuint8m2_t srcRe = __riscv_vsrl_vx_u8m2(__riscv_vand_vx_u8m2(grouped, 0xF0, vl), 0x4, vl);
+        vuint8m2_t srcIm = __riscv_vand_vx_u8m2(grouped, 0x0F, vl);
 
-        vint16m4_t outRe = __riscv_vrgather_vv_i16m4(tableRe, srcRe, vl);
-        vint16m4_t outIm = __riscv_vrgather_vv_i16m4(tableIm, srcIm, vl);
+        vint8m2_t outRe = __riscv_vrgather_vv_i8m2(tableRe, srcRe, vl);
+        vint8m2_t outIm = __riscv_vrgather_vv_i8m2(tableIm, srcIm, vl);
 
-	vint16m4x2_t outSeg = __riscv_vcreate_v_i16m4x2(outRe, outIm);
+        vint16m4_t outWRe = __riscv_vmul_vx_i16m4(__riscv_vwcvt_x_x_v_i16m4(outRe, vl), C_256QAM, vl);
+        vint16m4_t outWIm = __riscv_vmul_vx_i16m4(__riscv_vwcvt_x_x_v_i16m4(outIm, vl), C_256QAM, vl);
+
+	    vint16m4x2_t outSeg = __riscv_vcreate_v_i16m4x2(outWRe, outWIm);
 
         __riscv_vsseg2e16_v_i16m4x2((int16_t*)pDst + i * 2, outSeg, vl);
 
@@ -448,10 +462,10 @@ void optQAM256(const uint8_t *pSrc, T16sc *pDst, uint32_t length)
 
 void optQAM256_proxy(const uint8_t *pSrc, T16sc *pDst, uint32_t length)
 {
-    size_t table_vl =  __riscv_vsetvl_e16m1(sizeof(mod256QAM_LUT) / sizeof(*mod256QAM_LUT));
+    size_t table_vl =  __riscv_vsetvl_e8m2(sizeof(mod256QAM_LUT) / sizeof(*mod256QAM_LUT));
 
-    vint16m4_t tableRe = __riscv_vle16_v_i16m4(mod256QAM_LUT, table_vl);
-    vint16m4_t tableIm = __riscv_vmv_v_v_i16m4(tableRe, table_vl);
+    vint8m2_t tableRe = __riscv_vle8_v_i8m2(mod256QAM_LUT, table_vl);
+    vint8m2_t tableIm = __riscv_vmv_v_v_i8m2(tableRe, table_vl);
 
     for (uint32_t i = 0; i < length;)
     {
@@ -461,13 +475,16 @@ void optQAM256_proxy(const uint8_t *pSrc, T16sc *pDst, uint32_t length)
 
         vuint8m2_t grouped = __riscv_vand_vx_u8m2(src, 0x9, vl); // assume it is vector unzip
 
-        vuint16m4_t srcRe = __riscv_vwcvtu_x_x_v_u16m4(__riscv_vsrl_vx_u8m2(__riscv_vand_vx_u8m2(grouped, 0xF0, vl), 0x4, vl), vl);
-        vuint16m4_t srcIm = __riscv_vwcvtu_x_x_v_u16m4(__riscv_vand_vx_u8m2(grouped, 0x0F, vl), vl);
+        vuint8m2_t srcRe = __riscv_vsrl_vx_u8m2(__riscv_vand_vx_u8m2(grouped, 0xF0, vl), 0x4, vl);
+        vuint8m2_t srcIm = __riscv_vand_vx_u8m2(grouped, 0x0F, vl);
 
-        vint16m4_t outRe = __riscv_vrgather_vv_i16m4(tableRe, srcRe, vl);
-        vint16m4_t outIm = __riscv_vrgather_vv_i16m4(tableIm, srcIm, vl);
+        vint8m2_t outRe = __riscv_vrgather_vv_i8m2(tableRe, srcRe, vl);
+        vint8m2_t outIm = __riscv_vrgather_vv_i8m2(tableIm, srcIm, vl);
 
-	vint16m4x2_t outSeg = __riscv_vcreate_v_i16m4x2(outRe, outIm);
+        vint16m4_t outWRe = __riscv_vmul_vx_i16m4(__riscv_vwcvt_x_x_v_i16m4(outRe, vl), C_256QAM, vl);
+        vint16m4_t outWIm = __riscv_vmul_vx_i16m4(__riscv_vwcvt_x_x_v_i16m4(outIm, vl), C_256QAM, vl);
+
+	    vint16m4x2_t outSeg = __riscv_vcreate_v_i16m4x2(outWRe, outWIm);
 
         __riscv_vsseg2e16_v_i16m4x2((int16_t*)pDst + i * 2, outSeg, vl);
 
