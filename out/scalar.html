@@ -1,6 +1,58 @@
-make: Entering directory '/home/orangepi/rvv-bench/instructions/scalar'
-cc -march=rv64gcv -O3 -Wall -Wextra -Wno-unused-function -Wno-unused-parameter -DUSE_PERF_EVENT main.S main.c -o scalar
-../../run.sh ./scalar
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RISC-V Instruction Latencies</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        h1 {
+            color: #333;
+        }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            background-color: white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px 12px;
+            text-align: left;
+        }
+        th {
+            background-color: #4CAF50;
+            color: white;
+            font-weight: bold;
+            position: sticky;
+            top: 0;
+        }
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        tr:hover {
+            background-color: #f1f1f1;
+        }
+        .latency {
+            text-align: right;
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+    <h1>RISC-V Instruction Latencies</h1>
+    <table>
+        <thead>
+            <tr>
+                <th>Instruction</th>
+                <th>Throughput (cycles)</th>
+            </tr>
+        </thead>
+        <tbody>
 <tr><td>add t0, s4,s5</td><td>0.51</td></tr>
 <tr><td>addw t0, s4,s5</td><td>0.52</td></tr>
 <tr><td>addi t0, s4,13</td><td>0.52</td></tr>
@@ -137,4 +189,7 @@ cc -march=rv64gcv -O3 -Wall -Wextra -Wno-unused-function -Wno-unused-parameter -
 <tr><td>flt.d t0, fa1,fa2</td><td>2.00</td></tr>
 <tr><td>fle.d t0, fa1,fa2</td><td>2.00</td></tr>
 <tr><td>fclass.d t0, fa1</td><td>2.00</td></tr>
-make: Leaving directory '/home/orangepi/rvv-bench/instructions/scalar'
+        </tbody>
+    </table>
+</body>
+</html>
