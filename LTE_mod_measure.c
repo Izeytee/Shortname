@@ -70,8 +70,6 @@ static const T16sc mod16QAM[] =
 
 static const int8_t mod16QAM_LUT[]  = {
     1, 3, -1, 3, 1, 3, -1, 3,
-    1, 3, -1, 3, 1, 3, -1, 3,
-    1, 3, -1, 3, 1, 3, -1, 3,
     1, 3, -1, 3, 1, 3, -1, 3
 };
 
@@ -96,8 +94,6 @@ static const T16sc mod64QAM[] =
 };
 
 static const int8_t mod64QAM_LUT[]  = {
-    3, 1, 5, 7, -3, -1, -5, -7,
-    3, 1, 5, 7, -3, -1, -5, -7,
     3, 1, 5, 7, -3, -1, -5, -7,
     3, 1, 5, 7, -3, -1, -5, -7
 };
@@ -175,9 +171,7 @@ static const T16sc mod256QAM[] =
 
 static const int8_t mod256QAM_LUT[]  = {
      5,  7,  3,  1,   11,  9,   13,  15,
-    -5, -7, -3, -1,  -11, -9,  -13, -15,
-     5,  7,  3,  1,   11,  9,   13,  15,
-    -5, -7, -3, -1,  -11, -9,  -13, -15,
+    -5, -7, -3, -1,  -11, -9,  -13, -15
 };
 
 static const T16sc *getModTable(Modulation_t modType)
@@ -297,7 +291,7 @@ void optQAM16_proxy(const uint8_t *pSrc, T16sc *pDst, uint32_t length)
 {
     size_t table_vl =  __riscv_vsetvl_e8m1(sizeof(mod16QAM_LUT) / sizeof(*mod16QAM_LUT));
 
-    vint8m2_t table = __riscv_vle8_v_i8m1(mod16QAM_LUT, table_vl);
+    vint8m1_t table = __riscv_vle8_v_i8m1(mod16QAM_LUT, table_vl);
 
     for (uint32_t i = 0; i < length;)
     {
@@ -384,7 +378,7 @@ void optQAM64_proxy(const uint8_t *pSrc, T16sc *pDst, uint32_t length)
 
         vuint8m1_t grouped = __riscv_vand_vx_u8m1(src, 0x9, vl); // assume it is vector unzip
 
-        vuint8m1_t srcRe = __riscv_vsrl_vx_u8m1(__riscv_vand_vx_u8m2(grouped, 0x38, vl), 0x3, vl);
+        vuint8m1_t srcRe = __riscv_vsrl_vx_u8m1(__riscv_vand_vx_u8m1(grouped, 0x38, vl), 0x3, vl);
         vuint8m1_t srcIm = __riscv_vand_vx_u8m1(grouped, 0x07, vl);
 
         vint8m1_t outRe = __riscv_vrgather_vv_i8m1(table, srcRe, vl);
@@ -409,9 +403,9 @@ void optQAM256(const uint8_t *pSrc, T16sc *pDst, uint32_t length)
 
     for (uint32_t i = 0; i < length;)
     {
-        size_t vl =  __riscv_vsetvl_e8m2(length - i);
+        size_t vl =  __riscv_vsetvl_e8m1(length - i);
 
-        vuint8m1_t src = __riscv_vle8_v_u8m2(pSrc + i, vl);
+        vuint8m1_t src = __riscv_vle8_v_u8m1(pSrc + i, vl);
 
         vuint8m1_t b6 = __riscv_vand_vx_u8m1(src, 0x40, vl);
         vuint8m1_t b5 = __riscv_vand_vx_u8m1(src, 0x20, vl);
@@ -436,7 +430,7 @@ void optQAM256(const uint8_t *pSrc, T16sc *pDst, uint32_t length)
             vl);
 
         vuint8m1_t grouped = __riscv_vand_vx_u8m1(src, 0x81, vl);
-        grouped = __riscv_vor_vv_u8m2(grouped, swapped, vl);
+        grouped = __riscv_vor_vv_u8m1(grouped, swapped, vl);
 
         vuint8m1_t srcRe = __riscv_vsrl_vx_u8m1(__riscv_vand_vx_u8m1(grouped, 0xF0, vl), 0x4, vl);
         vuint8m1_t srcIm = __riscv_vand_vx_u8m1(grouped, 0x0F, vl);
@@ -480,7 +474,7 @@ void optQAM256_proxy(const uint8_t *pSrc, T16sc *pDst, uint32_t length)
 
 	    vint16m2x2_t outSeg = __riscv_vcreate_v_i16m2x2(outWRe, outWIm);
 
-        __riscv_vsseg2e16_v_i16m4x2((int16_t*)pDst + i * 2, outSeg, vl);
+        __riscv_vsseg2e16_v_i16m2x2((int16_t*)pDst + i * 2, outSeg, vl);
 
         i += vl;
     }
@@ -501,6 +495,7 @@ int main()
         pSrc[i] = rand();
     }
     T16sc *pDst = (T16sc*)malloc(sizeof(T16sc) * MAX_SIZE);
+    T16sc *pDst2 = (T16sc*)malloc(sizeof(T16sc) * MAX_SIZE);
 
     size_t lengths_N = sizeof(lengths) / sizeof(*lengths);
     
@@ -551,5 +546,7 @@ int main()
     BENCHMARK_MODULATION("proxy", Qam64,  optQAM64_proxy(pSrc, pDst, length));
     BENCHMARK_MODULATION("proxy", Qam256, optQAM256_proxy(pSrc, pDst, length));
 
+
     #undef BENCHMARK_MODULATION
 }
+
